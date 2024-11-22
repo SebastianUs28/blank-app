@@ -3,6 +3,7 @@ from pymongo import MongoClient
 import pandas as pd
 from pyvis.network import Network
 import networkx as nx
+from streamlit.components.v1 import html  # Para incrustar HTML
 
 # Configuración de conexión a MongoDB para transcripciones
 MONGO_URI = "mongodb+srv://sebastian_us:4254787Jus@cluster0.ecyx6.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
@@ -49,12 +50,13 @@ def get_similitudes_from_mongo(senten_id, max_similitud):
             {"providencia1": senten_id},
             {"providencia2": senten_id}
         ],
-        "similitud": {"$lte": max_similitud}  # Solo consideramos el máximo de similitud
+        "similitud": {"$lte": float(max_similitud)}  # Convertimos max_similitud a float
     }
     
     # Recuperar los datos
     similitudes = list(collection.find(query))
     return similitudes
+
 # Función para obtener las providencias de la colección de similitudes
 def get_similitudes_providencias(collection_d):
     return collection_d.distinct("providencia1") + collection_d.distinct("providencia2")
@@ -71,12 +73,13 @@ def create_similarity_graph(similitudes):
     G = nx.Graph()
     
     for record in similitudes:
-        providencia1 = record["providencia1"]
-        providencia2 = record["providencia2"]
-        similitud = record["similitud"]
-        
-        # Añadir los nodos y aristas con la similitud como peso
-        G.add_edge(providencia1, providencia2, weight=similitud)
+        providencia1 = record.get("providencia1")
+        providencia2 = record.get("providencia2")
+        similitud = record.get("similitud")
+        if providencia1 and providencia2 and similitud is not None:
+            G.add_edge(providencia1, providencia2, weight=similitud)
+        else:
+            st.write(f"Registro inválido: {record}")
     
     return G
 
@@ -91,10 +94,11 @@ def visualize_graph(G):
     for edge in G.edges(data=True):
         net.add_edge(edge[0], edge[1], value=edge[2]['weight'])
     
-    # Mostrar el grafo
-    net.show("graph.html")
-    st.write("Visualización interactiva disponible en el siguiente enlace:")
-    st.markdown("[Abrir grafo interactivo](graph.html)", unsafe_allow_html=True)
+    # Generar HTML como cadena
+    net_html = net.generate_html()
+    
+    # Mostrar HTML en Streamlit
+    html(net_html, height=600)
 
 # Interfaz Streamlit: Selección de la página (Filtros o Similitudes)
 page = st.sidebar.radio("Selecciona una sección", ["Resultados de los Filtros", "Filtrar por Similitudes"])
@@ -192,4 +196,5 @@ elif page == "Filtrar por Similitudes":
             visualize_graph(G)
         else:
             st.write(f"No se encontraron similitudes para la providencia {selected_providencia} dentro del rango de similitudes especificado.")
+
 
