@@ -91,32 +91,6 @@ def visualize_graph(G):
     st.markdown("[Abrir grafo interactivo](graph.html)", unsafe_allow_html=True)
 
 # Interfaz Streamlit
-st.title("Visualización de Similitudes entre Sentencias")
-
-# Selector de sentencia para obtener similitudes
-sentencia = st.text_input("Introduce el ID de la providencia (ej. A-742-24)")
-
-# Filtros de similitud
-min_similitud = st.slider("Similitud mínima", 0.0, 100.0, 0.0, 0.1)
-max_similitud = st.slider("Similitud máxima", 0.0, 100.0, 100.0, 0.1)
-
-if sentencia:
-    # Obtener las similitudes de la sentencia seleccionada dentro del rango
-    similitudes = get_similitudes_from_mongo(sentencia, min_similitud, max_similitud)
-    
-    if similitudes:
-        st.write(f"Similitudes encontradas para la providencia {sentencia} entre {min_similitud} y {max_similitud}:")
-        
-        # Crear grafo de similitudes
-        G = create_similarity_graph(similitudes)
-        
-        # Visualizar el grafo
-        visualize_graph(G)
-    else:
-        st.write(f"No se encontraron similitudes para la providencia {sentencia} dentro del rango de similitudes especificado.")
-
-# Conexión para el sistema de consultas
-collection = get_mongo_connection()
 
 # Título y descripción del sistema de consulta
 st.markdown("""
@@ -177,4 +151,31 @@ elif texto_clave:
     results = query_mongo(collection, {"$text": {"$search": texto_clave}})
     df = results_to_dataframe(results)
     st.dataframe(df)
+st.title("Visualización de Similitudes entre Sentencias")
+
+# Selector de sentencia para obtener similitudes
+sentencia = st.text_input("Introduce el ID de la providencia (ej. A-742-24)")
+
+# Filtros de similitud
+min_similitud = st.slider("Similitud mínima", 0.0, 100.0, 0.0, 0.1)
+max_similitud = st.slider("Similitud máxima", 0.0, 100.0, 100.0, 0.1)
+
+if sentencia:
+    # Obtener las similitudes de la sentencia seleccionada dentro del rango
+    similitudes = get_similitudes_from_mongo(sentencia, min_similitud, max_similitud)
+    
+    if similitudes:
+        st.write(f"Similitudes encontradas para la providencia {sentencia} entre {min_similitud} y {max_similitud}:")
+        
+        # Crear grafo de similitudes
+        G = create_similarity_graph(similitudes)
+        
+        # Visualizar el grafo
+        visualize_graph(G)
+    else:
+        st.write(f"No se encontraron similitudes para la providencia {sentencia} dentro del rango de similitudes especificado.")
+
+# Conexión para el sistema de consultas
+collection = get_mongo_connection()
+
 
