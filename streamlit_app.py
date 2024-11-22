@@ -44,17 +44,24 @@ def get_similitudes_from_mongo(senten_id, max_similitud):
     db = client[database_name_d]
     collection = db[collection_name_d]
     
-    # Consulta para obtener similitudes para una sentencia específica y un rango de similitudes
+    # Convertir similitud máxima a float para mayor precisión
+    max_similitud = float(max_similitud)
+    
+    # Consulta para obtener similitudes
     query = {
         "$or": [
             {"providencia1": senten_id},
             {"providencia2": senten_id}
         ],
-        "similitud": {"$lte": float(max_similitud)}  # Convertimos max_similitud a float
+        "similitud": {"$lte": max_similitud}
     }
     
-    # Recuperar los datos
     similitudes = list(collection.find(query))
+    
+    # Depuración: Mostrar consulta y resultados
+    st.write("Consulta realizada a MongoDB:", query)
+    st.write("Similitudes encontradas:", similitudes)
+    
     return similitudes
 
 # Función para obtener las providencias de la colección de similitudes
@@ -79,7 +86,7 @@ def create_similarity_graph(similitudes):
         if providencia1 and providencia2 and similitud is not None:
             G.add_edge(providencia1, providencia2, weight=similitud)
         else:
-            st.write(f"Registro inválido: {record}")
+            st.write("Registro inválido:", record)
     
     return G
 
@@ -177,6 +184,7 @@ elif page == "Filtrar por Similitudes":
     # Filtro: Selección de providencia
     collection_similitudes = get_mongo_connection_similitudes()
     providencias_similitudes = get_similitudes_providencias(collection_similitudes)
+    st.write("Providencias disponibles para similitudes:", providencias_similitudes)  # Debug
     selected_providencia = st.sidebar.selectbox("Selecciona una providencia de similitudes", providencias_similitudes)
 
     # Barra deslizadora para el máximo de similitud
@@ -188,6 +196,7 @@ elif page == "Filtrar por Similitudes":
         
         if similitudes:
             st.write(f"Similitudes encontradas para la providencia {selected_providencia} con similitud máxima de {max_similitud}:")
+            st.write("Datos de similitudes recuperados:", similitudes)  # Debug
             
             # Crear grafo de similitudes
             G = create_similarity_graph(similitudes)
