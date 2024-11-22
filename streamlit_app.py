@@ -25,6 +25,18 @@ def get_mongo_connection():
 def get_unique_values(collection, field):
     return collection.distinct(field)
 
+# Función para realizar consultas a MongoDB
+def query_mongo(collection, query):
+    return list(collection.find(query))
+
+# Función para transformar resultados a DataFrame
+def results_to_dataframe(results):
+    if results:
+        df = pd.DataFrame(results)
+        df.drop(columns=["_id"], inplace=True, errors="ignore")  # Ignorar error si no existe "_id"
+        return df
+    return pd.DataFrame(columns=["No hay resultados"])
+
 # Función para obtener similitudes desde MongoDB
 def get_similitudes_from_mongo(providencia1, min_similitud, max_similitud):
     client = MongoClient(mongo_uri_d)
@@ -35,7 +47,6 @@ def get_similitudes_from_mongo(providencia1, min_similitud, max_similitud):
         "providencia1": providencia1,
         "similitud": {"$gte": min_similitud, "$lte": max_similitud}
     }
-    
     similitudes = list(collection.find(query))
     return similitudes
 
@@ -49,8 +60,7 @@ def create_similarity_graph(similitudes):
         similitud = record.get("similitud")
         
         if providencia1 and providencia2 and similitud is not None:
-            # Similitud inversa para calcular distancia
-            distance = 100 - similitud
+            distance = 100 - similitud  # Similitud inversa para distancia
             G.add_edge(providencia1, providencia2, weight=similitud, distance=distance)
         else:
             st.write("Registro inválido encontrado:", record)
@@ -79,31 +89,58 @@ if page == "Resultados de los Filtros":
     
     st.title("Sistema de Consulta de Providencias")
     st.markdown("""
-    Bienvenido al sistema de consulta de providencias judiciales. 
-    Aquí puedes filtrar y buscar por diferentes criterios, como: 
-    - **Nombre de la providencia**. 
-    - **Tipo de providencia**. 
-    - **Año de emisión**. 
-    - **Texto en el contenido de la providencia**.
+    Bienvenido al sistema de consulta de providencias judiciales. Aquí puedes filtrar por:
+    - **Nombre de la providencia**
+    - **Tipo de sentencia**
+    - **Año de emisión**
+    - **Texto contenido en la providencia**
     """)
-    
+
     st.sidebar.title("Filtros")
+    
+    # Filtro: Nombre de Providencia
     providencias = get_unique_values(collection, "providencia")
     selected_providencia = st.sidebar.selectbox("Selecciona una providencia", [""] + providencias)
 
+    # Filtro: Tipo de Sentencia
+    tipos = get_unique_values(collection, "tipo")
+    selected_tipo = st.sidebar.selectbox("Selecciona un tipo de sentencia", [""] + tipos)
+
+    # Filtro: Año de Emisión
+    anios = get_unique_values(collection, "anio")
+    selected_anio = st.sidebar.selectbox("Selecciona un año", [""] + anios)
+
+    # Filtro: Texto Contenido
+    texto_clave = st.sidebar.text_input("Escribe una palabra clave para buscar en el texto")
+
+    # Construir la consulta dinámica
+    query = {}
     if selected_providencia:
-        st.subheader(f"Resultados para Providencia: {selected_providencia}")
-        results = list(collection.find({"providencia": selected_providencia}))
-        df = pd.DataFrame(results).drop(columns=["_id"], errors="ignore")
+        query["providencia"] = selected_providencia
+    if selected_tipo:
+        query["tipo"] = selected_tipo
+    if selected_anio:
+        query["anio"] = selected_anio
+    if texto_clave:
+        query["$text"] = {"$search": texto_clave}
+
+    if query:
+        st.subheader("Resultados de la Consulta")
+        results = query_mongo(collection, query)
+        df = results_to_dataframe(results)
         st.dataframe(df)
+    else:
+        st.write("Selecciona al menos un filtro para realizar la consulta.")
 
 elif page == "Filtrar por Similitudes":
     st.title("Filtrar por Similitudes")
     collection = get_mongo_connection()
     
+    # Seleccionar providencia
     providencias = get_unique_values(collection, "providencia")
     selected_providencia = st.sidebar.selectbox("Selecciona una providencia", [""] + providencias)
 
+    # Rango de similitudes
     min_similitud, max_similitud = st.sidebar.slider(
         "Rango de Similitud",
         0.0, 100.0, (0.0, 100.0), 0.1
@@ -119,4 +156,5 @@ elif page == "Filtrar por Similitudes":
             visualize_graph(G)
         else:
             st.write("No se encontraron similitudes en el rango especificado.")
+
 
