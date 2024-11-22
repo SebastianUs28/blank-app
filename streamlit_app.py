@@ -1,14 +1,20 @@
 import streamlit as st
 from pymongo import MongoClient
 import pandas as pd
+from pyvis.network import Network
+import networkx as nx
 
-# Configuración de conexión a MongoDB
+# Configuración de conexión a MongoDB para transcripciones
 MONGO_URI = "mongodb+srv://sebastian_us:4254787Jus@cluster0.ecyx6.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 DATABASE_NAME = "transcripciones"
 COLLECTION_NAME = "transcripciones"
 
-# Función para conectarse a MongoDB
-@st.cache_resource
+# Configuración de conexión a MongoDB para similitudes
+mongo_uri_d = "mongodb+srv://adiazc07:Colombia1.@cluster0.lydnuw6.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+database_name_d = "Providencia"
+collection_name_d = "Similitud"
+
+# Conexión a MongoDB para transcripciones
 def get_mongo_connection():
     client = MongoClient(MONGO_URI)
     db = client[DATABASE_NAME]
@@ -29,17 +35,90 @@ def results_to_dataframe(results):
         df = pd.DataFrame(results)
         df.drop(columns=["_id"], inplace=True)  # Opcional: eliminar columna _id
         return df
-    else:
-        return pd.DataFrame(columns=["No hay resultados"])
+    return pd.DataFrame(columns=["No hay resultados"])
 
-# Crear un índice de texto en MongoDB
+# Función para crear un índice de texto en MongoDB
 def create_text_index(collection, field):
     collection.create_index([(field, "text")])
 
+# Función para obtener similitudes desde MongoDB (para el grafo)
+def get_similitudes_from_mongo(senten_id, min_similitud, max_similitud):
+    client = MongoClient(mongo_uri_d)
+    db = client[database_name_d]
+    collection = db[collection_name_d]
+    
+    # Consulta para obtener similitudes para una sentencia específica y un rango de similitudes
+    query = {
+        "$or": [
+            {"providencia1": senten_id},
+            {"providencia2": senten_id}
+        ],
+        "similitud": {"$gte": min_similitud, "$lte": max_similitud}
+    }
+    
+    # Recuperar los datos
+    similitudes = list(collection.find(query))
+    return similitudes
+
+# Crear un grafo con las similitudes
+def create_similarity_graph(similitudes):
+    G = nx.Graph()
+    
+    for record in similitudes:
+        providencia1 = record["providencia1"]
+        providencia2 = record["providencia2"]
+        similitud = record["similitud"]
+        
+        # Añadir los nodos y aristas con la similitud como peso
+        G.add_edge(providencia1, providencia2, weight=similitud)
+    
+    return G
+
+# Visualizar el grafo con pyvis
+def visualize_graph(G):
+    net = Network(height="600px", width="100%", bgcolor="#222222", font_color="white")
+    
+    # Añadir nodos y aristas al grafo de pyvis
+    for node in G.nodes:
+        net.add_node(node, label=node)
+        
+    for edge in G.edges(data=True):
+        net.add_edge(edge[0], edge[1], value=edge[2]['weight'])
+    
+    # Mostrar el grafo
+    net.show("graph.html")
+    st.write("Visualización interactiva disponible en el siguiente enlace:")
+    st.markdown("[Abrir grafo interactivo](graph.html)", unsafe_allow_html=True)
+
+# Interfaz Streamlit
+st.title("Visualización de Similitudes entre Sentencias")
+
+# Selector de sentencia para obtener similitudes
+sentencia = st.text_input("Introduce el ID de la providencia (ej. A-742-24)")
+
+# Filtros de similitud
+min_similitud = st.slider("Similitud mínima", 0.0, 100.0, 0.0, 0.1)
+max_similitud = st.slider("Similitud máxima", 0.0, 100.0, 100.0, 0.1)
+
+if sentencia:
+    # Obtener las similitudes de la sentencia seleccionada dentro del rango
+    similitudes = get_similitudes_from_mongo(sentencia, min_similitud, max_similitud)
+    
+    if similitudes:
+        st.write(f"Similitudes encontradas para la providencia {sentencia} entre {min_similitud} y {max_similitud}:")
+        
+        # Crear grafo de similitudes
+        G = create_similarity_graph(similitudes)
+        
+        # Visualizar el grafo
+        visualize_graph(G)
+    else:
+        st.write(f"No se encontraron similitudes para la providencia {sentencia} dentro del rango de similitudes especificado.")
+
+# Conexión para el sistema de consultas
 collection = get_mongo_connection()
 
-# Título y descripción
-st.title("Sistema de Consulta de Providencias")
+# Título y descripción del sistema de consulta
 st.markdown("""
 Bienvenido al sistema de consulta de providencias judiciales. 
 Aquí puedes filtrar y buscar por diferentes criterios, como:
@@ -47,8 +126,6 @@ Aquí puedes filtrar y buscar por diferentes criterios, como:
 - **Tipo de providencia**.
 - **Año de emisión**.
 - **Texto en el contenido de la providencia**.
-
-Selecciona los filtros desde la barra lateral y observa los resultados en tiempo real a la derecha.
 """)
 
 # Barra lateral para filtros
@@ -100,3 +177,4 @@ elif texto_clave:
     results = query_mongo(collection, {"$text": {"$search": texto_clave}})
     df = results_to_dataframe(results)
     st.dataframe(df)
+
