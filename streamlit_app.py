@@ -55,7 +55,17 @@ def get_similitudes_from_mongo(senten_id, max_similitud):
     # Recuperar los datos
     similitudes = list(collection.find(query))
     return similitudes
+# Función para obtener las providencias de la colección de similitudes
+def get_similitudes_providencias(collection_d):
+    return collection_d.distinct("providencia1") + collection_d.distinct("providencia2")
 
+# Conexión a MongoDB para similitudes
+def get_mongo_connection_similitudes():
+    client = MongoClient(mongo_uri_d)
+    db = client[database_name_d]
+    collection = db[collection_name_d]
+    return collection
+    
 # Crear un grafo con las similitudes
 def create_similarity_graph(similitudes):
     G = nx.Graph()
@@ -161,9 +171,9 @@ elif page == "Filtrar por Similitudes":
     st.title("Filtrar por Similitudes")
     
     # Filtro: Selección de providencia
-    collection = get_mongo_connection()
-    providencias = get_unique_values(collection, "providencia")
-    selected_providencia = st.sidebar.selectbox("Selecciona una providencia", providencias)
+    collection_similitudes = get_mongo_connection_similitudes()
+    providencias_similitudes = get_similitudes_providencias(collection_similitudes)
+    selected_providencia = st.sidebar.selectbox("Selecciona una providencia de similitudes", providencias_similitudes)
 
     # Barra deslizadora para el máximo de similitud
     max_similitud = st.sidebar.slider("Similitud máxima", 0.0, 100.0, 100.0, 0.1)
