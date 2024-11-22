@@ -37,10 +37,6 @@ def results_to_dataframe(results):
         return df
     return pd.DataFrame(columns=["No hay resultados"])
 
-# Función para crear un índice de texto en MongoDB
-def create_text_index(collection, field):
-    collection.create_index([(field, "text")])
-
 # Función para obtener similitudes desde MongoDB (para el grafo)
 def get_similitudes_from_mongo(senten_id, min_similitud, max_similitud):
     client = MongoClient(mongo_uri_d)
@@ -90,92 +86,97 @@ def visualize_graph(G):
     st.write("Visualización interactiva disponible en el siguiente enlace:")
     st.markdown("[Abrir grafo interactivo](graph.html)", unsafe_allow_html=True)
 
-# Interfaz Streamlit
+# Interfaz Streamlit: Selección de la página (Filtros o Similitudes)
+page = st.sidebar.radio("Selecciona una sección", ["Resultados de los Filtros", "Filtrar por Similitudes"])
 
-# Título y descripción del sistema de consulta
-st.markdown("""
-Bienvenido al sistema de consulta de providencias judiciales. 
-Aquí puedes filtrar y buscar por diferentes criterios, como:
-- **Nombre de la providencia**.
-- **Tipo de providencia**.
-- **Año de emisión**.
-- **Texto en el contenido de la providencia**.
-""")
+if page == "Resultados de los Filtros":
+    # Mostrar los resultados basados en los filtros de consulta
 
-# Barra lateral para filtros
-st.sidebar.title("Filtros")
+    # Conexión para el sistema de consultas
+    collection = get_mongo_connection()
 
-# Filtro: Consulta por nombre de providencia
-st.sidebar.subheader("Nombre de Providencia")
-providencias = get_unique_values(collection, "providencia")
-selected_providencia = st.sidebar.selectbox("Selecciona una providencia", [""] + providencias)
+    # Título y descripción del sistema de consulta
+    st.title("Sistema de Consulta de Providencias")
+    st.markdown("""
+    Bienvenido al sistema de consulta de providencias judiciales. 
+    Aquí puedes filtrar y buscar por diferentes criterios, como:
+    - **Nombre de la providencia**.
+    - **Tipo de providencia**.
+    - **Año de emisión**.
+    - **Texto en el contenido de la providencia**.
+    """)
 
-# Filtro: Consulta por tipo
-st.sidebar.subheader("Tipo de Providencia")
-tipos = get_unique_values(collection, "tipo")
-selected_tipo = st.sidebar.selectbox("Selecciona un tipo de providencia", [""] + tipos)
+    # Barra lateral para filtros
+    st.sidebar.title("Filtros")
 
-# Filtro: Consulta por año
-st.sidebar.subheader("Año")
-anios = get_unique_values(collection, "anio")
-selected_anio = st.sidebar.selectbox("Selecciona un año", [""] + anios)
+    # Filtro: Consulta por nombre de providencia
+    st.sidebar.subheader("Nombre de Providencia")
+    providencias = get_unique_values(collection, "providencia")
+    selected_providencia = st.sidebar.selectbox("Selecciona una providencia", [""] + providencias)
 
-# Filtro: Consulta por texto
-st.sidebar.subheader("Texto en Providencia")
-create_text_index(collection, "texto")  # Crear índice de texto (si no existe)
-texto_clave = st.sidebar.text_input("Escribe una palabra clave para buscar en el texto")
+    # Filtro: Consulta por tipo
+    st.sidebar.subheader("Tipo de Providencia")
+    tipos = get_unique_values(collection, "tipo")
+    selected_tipo = st.sidebar.selectbox("Selecciona un tipo de providencia", [""] + tipos)
 
-# Mostrar resultados en el cuerpo principal
-st.title("Resultados de la Consulta")
+    # Filtro: Consulta por año
+    st.sidebar.subheader("Año")
+    anios = get_unique_values(collection, "anio")
+    selected_anio = st.sidebar.selectbox("Selecciona un año", [""] + anios)
 
-if selected_providencia:
-    st.subheader(f"Resultados para Providencia: {selected_providencia}")
-    results = query_mongo(collection, {"providencia": selected_providencia})
-    df = results_to_dataframe(results)
-    st.dataframe(df)
+    # Filtro: Consulta por texto
+    st.sidebar.subheader("Texto en Providencia")
+    texto_clave = st.sidebar.text_input("Escribe una palabra clave para buscar en el texto")
 
-elif selected_tipo:
-    st.subheader(f"Resultados para Tipo: {selected_tipo}")
-    results = query_mongo(collection, {"tipo": selected_tipo})
-    df = results_to_dataframe(results)
-    st.dataframe(df)
+    # Mostrar resultados en el cuerpo principal
+    st.title("Resultados de la Consulta")
 
-elif selected_anio:
-    st.subheader(f"Resultados para Año: {selected_anio}")
-    results = query_mongo(collection, {"anio": selected_anio})
-    df = results_to_dataframe(results)
-    st.dataframe(df)
+    if selected_providencia:
+        st.subheader(f"Resultados para Providencia: {selected_providencia}")
+        results = query_mongo(collection, {"providencia": selected_providencia})
+        df = results_to_dataframe(results)
+        st.dataframe(df)
 
-elif texto_clave:
-    st.subheader(f"Resultados para Texto: {texto_clave}")
-    results = query_mongo(collection, {"$text": {"$search": texto_clave}})
-    df = results_to_dataframe(results)
-    st.dataframe(df)
-st.title("Visualización de Similitudes entre Sentencias")
+    elif selected_tipo:
+        st.subheader(f"Resultados para Tipo: {selected_tipo}")
+        results = query_mongo(collection, {"tipo": selected_tipo})
+        df = results_to_dataframe(results)
+        st.dataframe(df)
 
-# Selector de sentencia para obtener similitudes
-sentencia = st.text_input("Introduce el ID de la providencia (ej. A-742-24)")
+    elif selected_anio:
+        st.subheader(f"Resultados para Año: {selected_anio}")
+        results = query_mongo(collection, {"anio": selected_anio})
+        df = results_to_dataframe(results)
+        st.dataframe(df)
 
-# Filtros de similitud
-min_similitud = st.slider("Similitud mínima", 0.0, 100.0, 0.0, 0.1)
-max_similitud = st.slider("Similitud máxima", 0.0, 100.0, 100.0, 0.1)
+    elif texto_clave:
+        st.subheader(f"Resultados para Texto: {texto_clave}")
+        results = query_mongo(collection, {"$text": {"$search": texto_clave}})
+        df = results_to_dataframe(results)
+        st.dataframe(df)
 
-if sentencia:
-    # Obtener las similitudes de la sentencia seleccionada dentro del rango
-    similitudes = get_similitudes_from_mongo(sentencia, min_similitud, max_similitud)
-    
-    if similitudes:
-        st.write(f"Similitudes encontradas para la providencia {sentencia} entre {min_similitud} y {max_similitud}:")
+elif page == "Filtrar por Similitudes":
+    # Mostrar la interfaz para filtrar similitudes
+
+    st.title("Filtrar por Similitudes")
+    sentencia = st.text_input("Introduce el ID de la providencia (ej. A-742-24)")
+
+    # Filtros de similitud
+    min_similitud = st.slider("Similitud mínima", 0.0, 100.0, 0.0, 0.1)
+    max_similitud = st.slider("Similitud máxima", 0.0, 100.0, 100.0, 0.1)
+
+    if sentencia:
+        # Obtener las similitudes de la sentencia seleccionada dentro del rango
+        similitudes = get_similitudes_from_mongo(sentencia, min_similitud, max_similitud)
         
-        # Crear grafo de similitudes
-        G = create_similarity_graph(similitudes)
-        
-        # Visualizar el grafo
-        visualize_graph(G)
-    else:
-        st.write(f"No se encontraron similitudes para la providencia {sentencia} dentro del rango de similitudes especificado.")
-
-# Conexión para el sistema de consultas
-collection = get_mongo_connection()
-
+        if similitudes:
+            st.write(f"Similitudes encontradas para la providencia {sentencia} entre {min_similitud} y {max_similitud}:")
+            
+            # Crear grafo de similitudes
+            G = create_similarity_graph(similitudes)
+            
+            # Visualizar el grafo
+            visualize_graph(G)
+        else:
+            st.write(f"No se encontraron similitudes para la providencia {sentencia} dentro del rango de similitudes especificado.")
 
