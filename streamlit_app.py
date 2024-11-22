@@ -38,7 +38,7 @@ def results_to_dataframe(results):
     return pd.DataFrame(columns=["No hay resultados"])
 
 # Función para obtener similitudes desde MongoDB (para el grafo)
-def get_similitudes_from_mongo(senten_id, min_similitud, max_similitud):
+def get_similitudes_from_mongo(senten_id, max_similitud):
     client = MongoClient(mongo_uri_d)
     db = client[database_name_d]
     collection = db[collection_name_d]
@@ -49,7 +49,7 @@ def get_similitudes_from_mongo(senten_id, min_similitud, max_similitud):
             {"providencia1": senten_id},
             {"providencia2": senten_id}
         ],
-        "similitud": {"$gte": min_similitud, "$lte": max_similitud}
+        "similitud": {"$lte": max_similitud}  # Solo consideramos el máximo de similitud
     }
     
     # Recuperar los datos
@@ -159,18 +159,21 @@ elif page == "Filtrar por Similitudes":
     # Mostrar la interfaz para filtrar similitudes
 
     st.title("Filtrar por Similitudes")
-    sentencia = st.text_input("Introduce el ID de la providencia (ej. A-742-24)")
+    
+    # Filtro: Selección de providencia
+    collection = get_mongo_connection()
+    providencias = get_unique_values(collection, "providencia")
+    selected_providencia = st.sidebar.selectbox("Selecciona una providencia", providencias)
 
-    # Filtros de similitud
-    min_similitud = st.slider("Similitud mínima", 0.0, 100.0, 0.0, 0.1)
-    max_similitud = st.slider("Similitud máxima", 0.0, 100.0, 100.0, 0.1)
+    # Barra deslizadora para el máximo de similitud
+    max_similitud = st.sidebar.slider("Similitud máxima", 0.0, 100.0, 100.0, 0.1)
 
-    if sentencia:
+    if selected_providencia:
         # Obtener las similitudes de la sentencia seleccionada dentro del rango
-        similitudes = get_similitudes_from_mongo(sentencia, min_similitud, max_similitud)
+        similitudes = get_similitudes_from_mongo(selected_providencia, max_similitud)
         
         if similitudes:
-            st.write(f"Similitudes encontradas para la providencia {sentencia} entre {min_similitud} y {max_similitud}:")
+            st.write(f"Similitudes encontradas para la providencia {selected_providencia} con similitud máxima de {max_similitud}:")
             
             # Crear grafo de similitudes
             G = create_similarity_graph(similitudes)
@@ -178,5 +181,5 @@ elif page == "Filtrar por Similitudes":
             # Visualizar el grafo
             visualize_graph(G)
         else:
-            st.write(f"No se encontraron similitudes para la providencia {sentencia} dentro del rango de similitudes especificado.")
+            st.write(f"No se encontraron similitudes para la providencia {selected_providencia} dentro del rango de similitudes especificado.")
 
