@@ -3,7 +3,7 @@ from pymongo import MongoClient
 import pandas as pd
 from pyvis.network import Network
 import networkx as nx
-from streamlit.components.v1 import html  # Para incrustar HTML
+from streamlit.components.v1 import html
 
 # Configuración de conexión a MongoDB para transcripciones
 MONGO_URI = "mongodb+srv://sebastian_us:4254787Jus@cluster0.ecyx6.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
@@ -34,20 +34,20 @@ def query_mongo(collection, query):
 def results_to_dataframe(results):
     if results:
         df = pd.DataFrame(results)
-        df.drop(columns=["_id"], inplace=True)  # Opcional: eliminar columna _id
+        df.drop(columns=["_id"], inplace=True, errors="ignore")  # Ignorar error si no existe "_id"
         return df
     return pd.DataFrame(columns=["No hay resultados"])
 
-# Función para obtener similitudes desde MongoDB (para el grafo)
+# Función para obtener similitudes desde MongoDB
 def get_similitudes_from_mongo(senten_id, max_similitud):
     client = MongoClient(mongo_uri_d)
     db = client[database_name_d]
     collection = db[collection_name_d]
     
-    # Convertir similitud máxima a float para mayor precisión
+    # Convertir similitud máxima a float
     max_similitud = float(max_similitud)
     
-    # Consulta para obtener similitudes
+    # Consulta a MongoDB
     query = {
         "$or": [
             {"providencia1": senten_id},
@@ -55,18 +55,19 @@ def get_similitudes_from_mongo(senten_id, max_similitud):
         ],
         "similitud": {"$lte": max_similitud}
     }
-    
     similitudes = list(collection.find(query))
     
-    # Depuración: Mostrar consulta y resultados
-    st.write("Consulta realizada a MongoDB:", query)
-    st.write("Similitudes encontradas:", similitudes)
+    # Depuración
+    st.write("Consulta MongoDB realizada:", query)
+    st.write("Resultados obtenidos:", similitudes)
     
     return similitudes
 
-# Función para obtener las providencias de la colección de similitudes
+# Función para obtener providencias únicas
 def get_similitudes_providencias(collection_d):
-    return collection_d.distinct("providencia1") + collection_d.distinct("providencia2")
+    providencia1_list = collection_d.distinct("providencia1")
+    providencia2_list = collection_d.distinct("providencia2")
+    return list(set(providencia1_list + providencia2_list))
 
 # Conexión a MongoDB para similitudes
 def get_mongo_connection_similitudes():
@@ -74,7 +75,7 @@ def get_mongo_connection_similitudes():
     db = client[database_name_d]
     collection = db[collection_name_d]
     return collection
-    
+
 # Crear un grafo con las similitudes
 def create_similarity_graph(similitudes):
     G = nx.Graph()
@@ -86,7 +87,7 @@ def create_similarity_graph(similitudes):
         if providencia1 and providencia2 and similitud is not None:
             G.add_edge(providencia1, providencia2, weight=similitud)
         else:
-            st.write("Registro inválido:", record)
+            st.write("Registro inválido encontrado:", record)
     
     return G
 
@@ -101,109 +102,63 @@ def visualize_graph(G):
     for edge in G.edges(data=True):
         net.add_edge(edge[0], edge[1], value=edge[2]['weight'])
     
-    # Generar HTML como cadena
+    # Generar el grafo como HTML y mostrarlo
     net_html = net.generate_html()
-    
-    # Mostrar HTML en Streamlit
     html(net_html, height=600)
 
-# Interfaz Streamlit: Selección de la página (Filtros o Similitudes)
+# Interfaz Streamlit: Selección de la página
 page = st.sidebar.radio("Selecciona una sección", ["Resultados de los Filtros", "Filtrar por Similitudes"])
 
 if page == "Resultados de los Filtros":
-    # Mostrar los resultados basados en los filtros de consulta
+    # Lógica para resultados de filtros (idéntica a la original)
 
-    # Conexión para el sistema de consultas
+    # Conexión a MongoDB
     collection = get_mongo_connection()
 
-    # Título y descripción del sistema de consulta
+    # Título y filtros
     st.title("Sistema de Consulta de Providencias")
-    st.markdown("""
-    Bienvenido al sistema de consulta de providencias judiciales. 
-    Aquí puedes filtrar y buscar por diferentes criterios, como:
-    - **Nombre de la providencia**.
-    - **Tipo de providencia**.
-    - **Año de emisión**.
-    - **Texto en el contenido de la providencia**.
-    """)
-
-    # Barra lateral para filtros
     st.sidebar.title("Filtros")
 
-    # Filtro: Consulta por nombre de providencia
-    st.sidebar.subheader("Nombre de Providencia")
     providencias = get_unique_values(collection, "providencia")
-    selected_providencia = st.sidebar.selectbox("Selecciona una providencia", [""] + providencias)
-
-    # Filtro: Consulta por tipo
-    st.sidebar.subheader("Tipo de Providencia")
+    selected_providencia = st.sidebar.selectbox("Nombre de la Providencia", [""] + providencias)
     tipos = get_unique_values(collection, "tipo")
-    selected_tipo = st.sidebar.selectbox("Selecciona un tipo de providencia", [""] + tipos)
-
-    # Filtro: Consulta por año
-    st.sidebar.subheader("Año")
+    selected_tipo = st.sidebar.selectbox("Tipo de Providencia", [""] + tipos)
     anios = get_unique_values(collection, "anio")
-    selected_anio = st.sidebar.selectbox("Selecciona un año", [""] + anios)
+    selected_anio = st.sidebar.selectbox("Año", [""] + anios)
+    texto_clave = st.sidebar.text_input("Texto en la Providencia")
 
-    # Filtro: Consulta por texto
-    st.sidebar.subheader("Texto en Providencia")
-    texto_clave = st.sidebar.text_input("Escribe una palabra clave para buscar en el texto")
-
-    # Mostrar resultados en el cuerpo principal
-    st.title("Resultados de la Consulta")
-
+    # Resultados
     if selected_providencia:
-        st.subheader(f"Resultados para Providencia: {selected_providencia}")
         results = query_mongo(collection, {"providencia": selected_providencia})
-        df = results_to_dataframe(results)
-        st.dataframe(df)
-
     elif selected_tipo:
-        st.subheader(f"Resultados para Tipo: {selected_tipo}")
         results = query_mongo(collection, {"tipo": selected_tipo})
-        df = results_to_dataframe(results)
-        st.dataframe(df)
-
     elif selected_anio:
-        st.subheader(f"Resultados para Año: {selected_anio}")
         results = query_mongo(collection, {"anio": selected_anio})
-        df = results_to_dataframe(results)
-        st.dataframe(df)
-
     elif texto_clave:
-        st.subheader(f"Resultados para Texto: {texto_clave}")
         results = query_mongo(collection, {"$text": {"$search": texto_clave}})
-        df = results_to_dataframe(results)
-        st.dataframe(df)
+    else:
+        results = []
+
+    df = results_to_dataframe(results)
+    st.dataframe(df)
 
 elif page == "Filtrar por Similitudes":
-    # Mostrar la interfaz para filtrar similitudes
-
-    st.title("Filtrar por Similitudes")
-    
-    # Filtro: Selección de providencia
+    # Conexión y datos
     collection_similitudes = get_mongo_connection_similitudes()
     providencias_similitudes = get_similitudes_providencias(collection_similitudes)
-    st.write("Providencias disponibles para similitudes:", providencias_similitudes)  # Debug
-    selected_providencia = st.sidebar.selectbox("Selecciona una providencia de similitudes", providencias_similitudes)
-
-    # Barra deslizadora para el máximo de similitud
+    
+    # Filtros
+    st.title("Filtrar por Similitudes")
+    selected_providencia = st.sidebar.selectbox("Selecciona una providencia", providencias_similitudes)
     max_similitud = st.sidebar.slider("Similitud máxima", 0.0, 100.0, 100.0, 0.1)
 
+    # Resultados
     if selected_providencia:
-        # Obtener las similitudes de la sentencia seleccionada dentro del rango
         similitudes = get_similitudes_from_mongo(selected_providencia, max_similitud)
         
         if similitudes:
-            st.write(f"Similitudes encontradas para la providencia {selected_providencia} con similitud máxima de {max_similitud}:")
-            st.write("Datos de similitudes recuperados:", similitudes)  # Debug
-            
-            # Crear grafo de similitudes
+            st.write(f"Similitudes encontradas para {selected_providencia} (máximo {max_similitud}):")
             G = create_similarity_graph(similitudes)
-            
-            # Visualizar el grafo
             visualize_graph(G)
         else:
-            st.write(f"No se encontraron similitudes para la providencia {selected_providencia} dentro del rango de similitudes especificado.")
-
-
+            st.write(f"No se encontraron similitudes para {selected_providencia} dentro del rango.")
