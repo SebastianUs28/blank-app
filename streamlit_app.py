@@ -92,7 +92,10 @@ def graficar_grafo_streamlit(driver, providencia, rango_min, rango_max):
     
 # Función para obtener lista de providencias desde Neo4j
 def obtener_providencias(driver):
-    query = "MATCH (p:Providencia) RETURN p.id AS id"
+    query = """
+    MATCH (p:Providencia)-[:SIMILAR]->(:Providencia)
+    RETURN DISTINCT p.id AS id
+    """
     with driver.session() as session:
         result = session.run(query)
         return [record["id"] for record in result]
