@@ -142,7 +142,7 @@ elif page == "Filtrar por Similitudes":
     st.sidebar.header("Configuración")
     
     # Obtener la lista de providencias
-    with GraphDatabase.driver(URI, auth=AUTH) as driver:
+    with GraphDatabase.driver(URI_NEO, auth=AUTH) as driver:
         providencias = obtener_providencias(driver)
     
     # Menú desplegable para seleccionar providencias
