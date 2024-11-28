@@ -45,8 +45,18 @@ def results_to_dataframe(results):
 from pyvis.network import Network
 import streamlit as st
 
+def obtener_providencias(driver):
+    # Consulta para obtener todas las providencias
+    query = "MATCH (p:Providencia) RETURN p.id AS id"
+    with driver.session() as session:
+        result = session.run(query)
+        return [record["id"] for record in result]
+
 def graficar_grafo_streamlit(driver, providencia, rango_min, rango_max):
-    # Modificar la consulta para incluir el filtro de rango de similitudes
+    from pyvis.network import Network
+    import streamlit.components.v1 as components
+
+    # Consulta para obtener relaciones con la providencia seleccionada
     query = """
     MATCH (a:Providencia {id: $providencia})-[r:SIMILAR]->(b:Providencia)
     WHERE r.similitud >= $rango_min AND r.similitud <= $rango_max
@@ -60,19 +70,19 @@ def graficar_grafo_streamlit(driver, providencia, rango_min, rango_max):
         result = session.run(query, providencia=providencia, rango_min=rango_min, rango_max=rango_max)
         relaciones = list(result)
         
-        if not relaciones:
-            st.error(f"No se encontraron relaciones para la providencia: {providencia} en el rango {rango_min} - {rango_max}")
-            return
-        
-        # Agregar nodos y relaciones al grafo
-        for record in relaciones:
-            origen = record["origen"]
-            destino = record["destino"]
-            similitud = record["similitud"]
-            
-            net.add_node(origen, label=origen, title=f"Providencia: {origen}")
-            net.add_node(destino, label=destino, title=f"Providencia: {destino}")
-            net.add_edge(origen, destino, value=similitud, title=f"Similitud: {similitud}")
+        if relaciones:
+            # Agregar nodos y relaciones al grafo si hay conexiones
+            for record in relaciones:
+                origen = record["origen"]
+                destino = record["destino"]
+                similitud = record["similitud"]
+                
+                net.add_node(origen, label=origen, title=f"Providencia: {origen}")
+                net.add_node(destino, label=destino, title=f"Providencia: {destino}")
+                net.add_edge(origen, destino, value=similitud, title=f"Similitud: {similitud}")
+        else:
+            # Si no hay conexiones, graficar solo la providencia seleccionada
+            net.add_node(providencia, label=providencia, title=f"Providencia: {providencia}")
     
     # Configurar opciones del grafo
     net.set_options("""
@@ -85,20 +95,11 @@ def graficar_grafo_streamlit(driver, providencia, rango_min, rango_max):
       }
     }
     """)
-    
+
     # Guardar y mostrar el grafo en Streamlit
     net.save_graph("grafo.html")
-    st.components.v1.html(open("grafo.html", "r").read(), height=600)
-    
-# Función para obtener lista de providencias desde Neo4j
-def obtener_providencias(driver):
-    query = """
-    MATCH (p:Providencia)-[:SIMILAR]->(:Providencia)
-    RETURN DISTINCT p.id AS id
-    """
-    with driver.session() as session:
-        result = session.run(query)
-        return [record["id"] for record in result]
+    components.html(open("grafo.html", "r").read(), height=600)
+
 
 
 # Configuración de página en Streamlit
@@ -155,22 +156,22 @@ elif page == "Filtrar por Similitudes":
     """)
 
     # Obtener la lista de providencias desde Neo4j
-    with GraphDatabase.driver(URI_NEO, auth=AUTH) as driver:
+     with GraphDatabase.driver(URI_NEO, auth=AUTH) as driver:
+        # Obtener todas las providencias
         providencias = obtener_providencias(driver)
 
-    # Menú desplegable para seleccionar la providencia
+    # Seleccionar la providencia
     selected_providencia = st.sidebar.selectbox("Seleccione una providencia:", [""] + providencias)
 
-    # Filtro de similitud
-    st.sidebar.subheader("Filtro de Similitud")
-    similitud_minima = st.sidebar.slider("Similitud mínima", 1, 100, 0, 1)
-    similitud_maxima = st.sidebar.slider("Similitud máxima", 1, 100, 100, 1)
+    # Seleccionar el rango de similitudes
+    st.sidebar.subheader("Filtro de similitudes")
+    rango_min = st.sidebar.slider("Similitud mínima", 0.0, 1.0, 0.5, step=0.01)
+    rango_max = st.sidebar.slider("Similitud máxima", 0.0, 1.0, 1.0, step=0.01)
 
     # Botón para generar el grafo
     if st.sidebar.button("Generar Grafo"):
         if selected_providencia:
             with GraphDatabase.driver(URI_NEO, auth=AUTH) as driver:
-                graficar_grafo_streamlit(driver, selected_providencia, similitud_minima, similitud_maxima)
+                graficar_grafo_streamlit(driver, selected_providencia, rango_min, rango_max)
         else:
-            st.error("Por favor, seleccione una providencia.")
-
+            st.error("Seleccione una providencia.")
