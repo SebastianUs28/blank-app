@@ -149,7 +149,7 @@ elif page == "Filtrar por Similitudes":
     providencia_usuario = st.sidebar.selectbox("Seleccione la providencia que desea analizar:", options=providencias)
     
     # Control deslizante para la similitud mínima
-    similitud_minima = st.sidebar.slider("Similitud mínima:", min_value=0.0, max_value=1.0, value=0.5, step=0.1)
+    similitud_minima = st.sidebar.slider("Similitud mínima:", min_value=0.0, max_value=100.0, value=1, step=1)
     
     # Botón para generar el grafo
     if st.sidebar.button("Generar Grafo"):
