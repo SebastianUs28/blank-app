@@ -1,5 +1,6 @@
 streamlit
 pandas
 pymongo
-pyvis
-network
+neo4j
+networkx
+matplotlib
