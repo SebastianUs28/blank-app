@@ -42,37 +42,49 @@ def results_to_dataframe(results):
 
 
 # Función para graficar grafo
-def graficar_grafo_por_providencia(driver, providencia, similitud_minima):
+def graficar_grafo_por_providencia(driver, providencia):
+    # Consulta para obtener relaciones de similitud
     query = """
     MATCH (a:Providencia {id: $providencia})-[r:SIMILAR]->(b:Providencia)
-    WHERE r.similitud >= $similitud_minima
     RETURN a.id AS origen, b.id AS destino, r.similitud AS similitud
     """
 
+    # Crear el grafo
     G = nx.DiGraph()
+
     with driver.session() as session:
-        result = session.run(query, providencia=providencia, similitud_minima=similitud_minima)
+        # Ejecutar la consulta y recoger resultados
+        result = session.run(query, providencia=providencia)
         registros = [record for record in result]
-        st.write("Resultados obtenidos de Neo4j:", registros)  # Log de depuración
 
+        # Log de depuración
+        st.write("Resultados obtenidos de Neo4j:")
+        for registro in registros:
+            st.write(registro)
+
+        # Construir el grafo a partir de los resultados
         for record in registros:
-            G.add_edge(
-                record["origen"],
-                record["destino"],
-                weight=record["similitud"]
-            )
+            origen = record["origen"]
+            destino = record["destino"]
+            similitud = record["similitud"]
 
-    if not G:
+            # Agregar aristas al grafo
+            G.add_edge(origen, destino, weight=similitud)
+
+    # Verificar si el grafo tiene nodos y aristas
+    if not G.nodes:
         st.warning(f"No se encontraron relaciones para la providencia: {providencia}")
         return
 
-    st.write(f"Nodos: {G.nodes()}")  # Log de depuración
-    st.write(f"Aristas: {G.edges(data=True)}")  # Log de depuración
+    st.write(f"Nodos del grafo: {G.nodes()}")
+    st.write(f"Aristas del grafo: {G.edges(data=True)}")
 
+    # Graficar el grafo con NetworkX y Matplotlib
     plt.figure(figsize=(10, 8))
-    pos = nx.spring_layout(G)
+    pos = nx.spring_layout(G)  # Disposición del grafo
     weights = nx.get_edge_attributes(G, 'weight')
 
+    # Dibujar nodos y aristas
     nx.draw(
         G, pos, with_labels=True, node_color="lightblue",
         node_size=2000, font_size=10, font_color="black",
@@ -81,9 +93,10 @@ def graficar_grafo_por_providencia(driver, providencia, similitud_minima):
     nx.draw_networkx_edge_labels(
         G, pos, edge_labels=weights, font_size=8
     )
+
     plt.title(f"Grafo de Providencia: {providencia}", fontsize=14)
     st.pyplot(plt)
-    plt.clf()  # Limpia la figura para evitar superposiciones
+    plt.clf()  # Limpiar figura para evitar superposiciones
 
 # Función para obtener lista de providencias desde Neo4j
 def obtener_providencias(driver):
