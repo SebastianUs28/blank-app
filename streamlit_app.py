@@ -42,62 +42,51 @@ def results_to_dataframe(results):
 
 
 # Función para graficar grafo
-def graficar_grafo_por_providencia(driver, providencia, similitud_minima):
-    # Consulta para obtener relaciones de similitud
+from pyvis.network import Network
+import streamlit as st
+
+def graficar_grafo_streamlit(driver, providencia):
     query = """
     MATCH (a:Providencia {id: $providencia})-[r:SIMILAR]->(b:Providencia)
-    WHERE r.similitud >= $similitud_minima
     RETURN a.id AS origen, b.id AS destino, r.similitud AS similitud
     """
-
-    # Crear el grafo
-    G = nx.DiGraph()
-
+    
+    # Crear el grafo en Pyvis
+    net = Network(height="600px", width="100%", bgcolor="#222222", font_color="white", directed=True)
+    
     with driver.session() as session:
-        # Ejecutar la consulta y recoger resultados
-        result = session.run(query, providencia=providencia, similitud_minima=similitud_minima)
-        registros = [record for record in result]
-
-        # Log de depuración
-        st.write("Resultados obtenidos de Neo4j:")
-        for registro in registros:
-            st.write(registro)
-
-        # Construir el grafo a partir de los resultados
-        for record in registros:
+        result = session.run(query, providencia=providencia)
+        relaciones = list(result)
+        
+        if not relaciones:
+            st.error(f"No se encontraron relaciones para la providencia: {providencia}")
+            return
+        
+        # Agregar nodos y relaciones al grafo
+        for record in relaciones:
             origen = record["origen"]
             destino = record["destino"]
             similitud = record["similitud"]
-
-            # Agregar aristas al grafo
-            G.add_edge(origen, destino, weight=similitud)
-
-    # Verificar si el grafo tiene nodos y aristas
-    if not G.nodes:
-        st.warning(f"No se encontraron relaciones para la providencia: {providencia}")
-        return
-
-    st.write(f"Nodos del grafo: {G.nodes()}")
-    st.write(f"Aristas del grafo: {G.edges(data=True)}")
-
-    # Graficar el grafo con NetworkX y Matplotlib
-    plt.figure(figsize=(10, 8))
-    pos = nx.spring_layout(G)  # Disposición del grafo
-    weights = nx.get_edge_attributes(G, 'weight')
-
-    # Dibujar nodos y aristas
-    nx.draw(
-        G, pos, with_labels=True, node_color="lightblue",
-        node_size=2000, font_size=10, font_color="black",
-        edge_color="gray", arrowsize=20
-    )
-    nx.draw_networkx_edge_labels(
-        G, pos, edge_labels=weights, font_size=8
-    )
-
-    plt.title(f"Grafo de Providencia: {providencia}", fontsize=14)
-    st.pyplot(plt)
-    plt.clf()  # Limpiar figura para evitar superposic
+            
+            net.add_node(origen, label=origen, title=f"Providencia: {origen}")
+            net.add_node(destino, label=destino, title=f"Providencia: {destino}")
+            net.add_edge(origen, destino, value=similitud, title=f"Similitud: {similitud}")
+    
+    # Configurar opciones del grafo
+    net.set_options("""
+    var options = {
+      "physics": {
+        "enabled": true,
+        "stabilization": {
+          "enabled": true
+        }
+      }
+    }
+    """)
+    
+    # Guardar y mostrar el grafo en Streamlit
+    net.save_graph("grafo.html")
+    st.components.v1.html(open("grafo.html", "r").read(), height=600)
     
 # Función para obtener lista de providencias desde Neo4j
 def obtener_providencias(driver):
