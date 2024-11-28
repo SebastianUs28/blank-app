@@ -156,7 +156,7 @@ elif page == "Filtrar por Similitudes":
     """)
 
     # Obtener la lista de providencias desde Neo4j
-     with GraphDatabase.driver(URI_NEO, auth=AUTH) as driver:
+    with GraphDatabase.driver(URI_NEO, auth=AUTH) as driver:
         # Obtener todas las providencias
         providencias = obtener_providencias(driver)
 
