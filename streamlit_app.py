@@ -52,24 +52,38 @@ def graficar_grafo_por_providencia(driver, providencia, similitud_minima):
     G = nx.DiGraph()
     with driver.session() as session:
         result = session.run(query, providencia=providencia, similitud_minima=similitud_minima)
-        for record in result:
-            G.add_edge(record["origen"], record["destino"], weight=record["similitud"])
+        registros = [record for record in result]
+        st.write("Resultados obtenidos de Neo4j:", registros)  # Log de depuración
+
+        for record in registros:
+            G.add_edge(
+                record["origen"],
+                record["destino"],
+                weight=record["similitud"]
+            )
 
     if not G:
         st.warning(f"No se encontraron relaciones para la providencia: {providencia}")
         return
 
+    st.write(f"Nodos: {G.nodes()}")  # Log de depuración
+    st.write(f"Aristas: {G.edges(data=True)}")  # Log de depuración
+
     plt.figure(figsize=(10, 8))
     pos = nx.spring_layout(G)
     weights = nx.get_edge_attributes(G, 'weight')
 
-    nx.draw(G, pos, with_labels=True, node_color="lightblue", node_size=2000,
-            font_size=10, font_color="black", edge_color="gray", arrowsize=20)
-    nx.draw_networkx_edge_labels(G, pos, edge_labels=weights, font_size=8)
+    nx.draw(
+        G, pos, with_labels=True, node_color="lightblue",
+        node_size=2000, font_size=10, font_color="black",
+        edge_color="gray", arrowsize=20
+    )
+    nx.draw_networkx_edge_labels(
+        G, pos, edge_labels=weights, font_size=8
+    )
     plt.title(f"Grafo de Providencia: {providencia}", fontsize=14)
     st.pyplot(plt)
-    plt.clf()  # Limpia el gráfico después de mostrarlo
-
+    plt.clf()  # Limpia la figura para evitar superposiciones
 
 # Función para obtener lista de providencias desde Neo4j
 def obtener_providencias(driver):
