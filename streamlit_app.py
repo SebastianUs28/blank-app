@@ -148,12 +148,12 @@ elif page == "Filtrar por Similitudes":
         providencias = obtener_providencias(driver)
 
     selected_providencia = st.sidebar.selectbox("Providencia:", [""] + providencias)
-    similitud_minima = st.sidebar.slider("Similitud mínima", 0.0, 100.0, 1.0, 1.0)
+    #similitud_minima = st.sidebar.slider("Similitud mínima", 0.0, 100.0, 1.0, 1.0)
 
     if st.sidebar.button("Generar Grafo"):
         if selected_providencia:
             with GraphDatabase.driver(URI_NEO, auth=AUTH) as driver:
-                graficar_grafo_por_providencia(driver, selected_providencia, similitud_minima)
+                graficar_grafo_streamlit(driver, selected_providencia)
         else:
             st.error("Seleccione una providencia.")
 
