@@ -87,8 +87,16 @@ if page == "Resultados de los Filtros":
     # Conexión a MongoDB
     collection = get_mongo_connection(MONGO_URI, DATABASE_NAME, COLLECTION_NAME)
 
-    # Filtros
-    st.title("Consulta de Transcripciones")
+    # Título y descripción del sistema de consulta
+    st.title("Sistema de Consulta de Providencias")
+    st.markdown("""
+    Bienvenido al sistema de consulta de providencias judiciales. 
+    Aquí puedes filtrar y buscar por diferentes criterios, como:
+    - **Nombre de la providencia**.
+    - **Tipo de providencia**.
+    - **Año de emisión**.
+    - **Texto en el contenido de la providencia**.
+    """)
     st.sidebar.subheader("Filtros")
 
     providencias = get_unique_values(collection, "providencia")
@@ -117,7 +125,7 @@ if page == "Resultados de los Filtros":
         st.dataframe(results_to_dataframe(results))
 
 elif page == "Filtrar por Similitudes":
-    st.title("Visualización de Grafos")
+    st.title("Visualización de Grafos de Providencias")
 
     with GraphDatabase.driver(URI_NEO, auth=AUTH) as driver:
         providencias = obtener_providencias(driver)
