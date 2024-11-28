@@ -42,10 +42,11 @@ def results_to_dataframe(results):
 
 
 # Función para graficar grafo
-def graficar_grafo_por_providencia(driver, providencia):
+def graficar_grafo_por_providencia(driver, providencia, similitud_minima):
     # Consulta para obtener relaciones de similitud
     query = """
     MATCH (a:Providencia {id: $providencia})-[r:SIMILAR]->(b:Providencia)
+    WHERE r.similitud >= $similitud_minima
     RETURN a.id AS origen, b.id AS destino, r.similitud AS similitud
     """
 
@@ -54,7 +55,7 @@ def graficar_grafo_por_providencia(driver, providencia):
 
     with driver.session() as session:
         # Ejecutar la consulta y recoger resultados
-        result = session.run(query, providencia=providencia)
+        result = session.run(query, providencia=providencia, similitud_minima=similitud_minima)
         registros = [record for record in result]
 
         # Log de depuración
@@ -96,8 +97,8 @@ def graficar_grafo_por_providencia(driver, providencia):
 
     plt.title(f"Grafo de Providencia: {providencia}", fontsize=14)
     st.pyplot(plt)
-    plt.clf()  # Limpiar figura para evitar superposiciones
-
+    plt.clf()  # Limpiar figura para evitar superposic
+    
 # Función para obtener lista de providencias desde Neo4j
 def obtener_providencias(driver):
     query = "MATCH (p:Providencia) RETURN p.id AS id"
