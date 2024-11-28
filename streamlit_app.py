@@ -148,6 +148,11 @@ if page == "Resultados de los Filtros":
 
 elif page == "Filtrar por Similitudes":
     st.title("Visualización de Grafos de Providencias")
+    st.markdown("""
+    Aquí se podrá visualizar un grafo de las providencias que están relacionadas con
+    otras. Para eso se debe indicar la providencia y un valor mínimo y máximo de 
+    similitud de esa providencia con respecto a las otras y se podrá visualizar.
+    """)
 
     # Obtener la lista de providencias desde Neo4j
     with GraphDatabase.driver(URI_NEO, auth=AUTH) as driver:
