@@ -1,6 +1,9 @@
 import streamlit as st
 from pymongo import MongoClient
 import pandas as pd
+import networkx as nx
+import matplotlib.pyplot as plt
+from neo4j import GraphDatabase
 
 # Configuración de conexión a MongoDB para transcripciones
 MONGO_URI = "mongodb+srv://sebastian_us:4254787Jus@cluster0.ecyx6.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
@@ -8,9 +11,8 @@ DATABASE_NAME = "transcripciones"
 COLLECTION_NAME = "transcripciones"
 
 # Configuración de conexión a MongoDB para similitudes
-mongo_uri_d = "mongodb+srv://adiazc07:Colombia1.@cluster0.lydnuw6.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-database_name_d = "Providencia"
-collection_name_d = "Similitud"
+URI_NEO = "neo4j+s://08d5f7d0.databases.neo4j.io"
+AUTH = ("neo4j", "IuWbeyZ2oHy3QCL7mPk4QU32dxzfy4O6yRCnfbydym8")
 
 # Conexión a MongoDB
 def get_mongo_connection(uri, database_name, collection_name):
@@ -34,35 +36,43 @@ def results_to_dataframe(results):
         return df
     return pd.DataFrame(columns=["No hay resultados"])
 
-# Obtener providencias únicas para la página de similitudes
-def get_unique_providencias_similitudes():
-    collection = get_mongo_connection(mongo_uri_d, database_name_d, collection_name_d)
-    providencia1_list = collection.distinct("providencia1")
-    providencia2_list = collection.distinct("providencia2")
-    return sorted(set(providencia1_list + providencia2_list))
+# Función para graficar el grafo filtrado por una providencia y similitud mínima
+def graficar_grafo_por_providencia(driver, providencia, similitud_minima):
+    query = """
+    MATCH (a:Providencia {id: $providencia})-[r:SIMILAR]->(b:Providencia)
+    WHERE r.similitud >= $similitud_minima
+    RETURN a.id AS origen, b.id AS destino, r.similitud AS similitud
+    """
 
-# Obtener similitudes desde MongoDB
-def get_similitudes_from_mongo(providencia, min_similitud, max_similitud):
-    collection = get_mongo_connection(mongo_uri_d, database_name_d, collection_name_d)
-    query = {
-        "$or": [
-            {"providencia1": providencia},
-            {"providencia2": providencia}
-        ],
-        "similitud": {"$gte": min_similitud, "$lte": max_similitud}
-    }
-    return list(collection.find(query))
+    G = nx.DiGraph()
+    with driver.session() as session:
+        result = session.run(query, providencia=providencia, similitud_minima=similitud_minima)
+        for record in result:
+            G.add_edge(
+                record["origen"],
+                record["destino"],
+                weight=record["similitud"]
+            )
 
-# Transformar resultados de similitud a DataFrame
-def similitudes_to_dataframe(similitudes, providencia_elegida):
-    data = []
-    for sim in similitudes:
-        related_prov = sim["providencia2"] if sim["providencia1"] == providencia_elegida else sim["providencia1"]
-        data.append({"Providencia Relacionada": related_prov, "Similitud": sim["similitud"]})
-    return pd.DataFrame(data)
+    if not G:
+        st.warning(f"No se encontraron relaciones para la providencia: {providencia}")
+        return
 
-# Interfaz Streamlit: Selección de la página
-page = st.sidebar.radio("Selecciona una sección", ["Resultados de los Filtros", "Filtrar por Similitudes"])
+    plt.figure(figsize=(10, 8))
+    pos = nx.spring_layout(G)
+    weights = nx.get_edge_attributes(G, 'weight')
+
+    nx.draw(
+        G, pos, with_labels=True, node_color="lightblue",
+        node_size=2000, font_size=10, font_color="black",
+        edge_color="gray", arrowsize=20
+    )
+    nx.draw_networkx_edge_labels(
+        G, pos, edge_labels=weights, font_size=8
+    )
+    plt.title(f"Grafo de Providencia: {providencia}", fontsize=14)
+    st.pyplot(plt)
+    plt.clf()  # Limpia la figura para evitar superposiciones
 
 if page == "Resultados de los Filtros":
     # Conexión para el sistema de consultas
@@ -127,25 +137,25 @@ if page == "Resultados de los Filtros":
         st.dataframe(df)
 
 elif page == "Filtrar por Similitudes":
-    st.title("Filtrar por Similitudes")
+    # Configurar la interfaz de Streamlit
+    st.title("Visualización de Grafos de Providencias")
+    st.sidebar.header("Configuración")
     
-    # Menú desplegable para seleccionar providencia
-    providencias_similitudes = get_unique_providencias_similitudes()
-    selected_providencia = st.sidebar.selectbox("Selecciona una providencia", [""] + providencias_similitudes)
-
-    # Barra deslizadora para rango de similitud
-    min_similitud, max_similitud = st.sidebar.slider(
-        "Rango de Similitud", 0.0, 100.0, (0.0, 100.0), 0.1
-    )
-
-    if selected_providencia:
-        st.subheader(f"Similitudes para la providencia: {selected_providencia}")
-        similitudes = get_similitudes_from_mongo(selected_providencia, min_similitud, max_similitud)
-
-        if similitudes:
-            st.write(f"Se encontraron {len(similitudes)} similitudes.")
-            df_similitudes = similitudes_to_dataframe(similitudes, selected_providencia)
-            st.dataframe(df_similitudes)
+    # Obtener la lista de providencias
+    with GraphDatabase.driver(URI, auth=AUTH) as driver:
+        providencias = obtener_providencias(driver)
+    
+    # Menú desplegable para seleccionar providencias
+    providencia_usuario = st.sidebar.selectbox("Seleccione la providencia que desea analizar:", options=providencias)
+    
+    # Control deslizante para la similitud mínima
+    similitud_minima = st.sidebar.slider("Similitud mínima:", min_value=0.0, max_value=1.0, value=0.5, step=0.1)
+    
+    # Botón para generar el grafo
+    if st.sidebar.button("Generar Grafo"):
+        if providencia_usuario:
+            with GraphDatabase.driver(URI, auth=AUTH) as driver:
+                graficar_grafo_por_providencia(driver, providencia_usuario, similitud_minima)
         else:
-            st.write("No se encontraron similitudes en el rango especificado.")
+            st.error("Por favor, seleccione una providencia.")
 
