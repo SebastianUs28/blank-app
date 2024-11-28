@@ -155,8 +155,8 @@ elif page == "Filtrar por Similitudes":
 
     # Filtro de similitud
     st.sidebar.subheader("Filtro de Similitud")
-    similitud_minima = st.sidebar.slider("Similitud mínima", 1, 100, 1, 0.1)
-    similitud_maxima = st.sidebar.slider("Similitud máxima", 1, 100, 100, 0.1)
+    similitud_minima = st.sidebar.slider("Similitud mínima", 1, 100, 1, 1)
+    similitud_maxima = st.sidebar.slider("Similitud máxima", 1, 100, 100, 1)
 
     # Botón para generar el grafo
     if st.sidebar.button("Generar Grafo"):
